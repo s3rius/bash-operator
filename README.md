@@ -1,15 +1,17 @@
 # Kubernetes operator framework for BASH
 
 This simple project will help you to easily write scripts for tracking resources
-of your cluster using bash scripts. 
-
+of your cluster using bash scripts.
 
 Here's an example of an operator that adds finalizers and removes them when resource is being deleted.
+
 ```bash
 #!/bin/bash
 # Don't use set -e, otherwise cleanup process might
 # not cleanup all jobs.
 # set -e
+
+export BASH_OPERATOR_LOG_LEVEL="info"
 
 # This is a simple example of how to use the bash-operator.
 function my_watcher(){
@@ -18,13 +20,17 @@ function my_watcher(){
   REQUEUE_FILE="$3"
 
   if [[ "$ACTION" == "Apply" ]]; then
-    echo "Updated" "$(jq -r '.metadata.name' "$MANIFEST")"
-    ./target/debug/bash-operator utils add-finalizer "bop/finalizer" "$MANIFEST"
+    echo "Updated" "$(yq '.metadata.name' "$MANIFEST")"
+    # Add the finalizer.
+    yq -iy '(.metadata.finalizers =  (["bop/finalizer"] + .metadata.finalizers | unique))' "$MANIFEST"
+    # Update annotations.
+    yq -iy '.metadata.annotations."bop/test" = "true"' "$MANIFEST"
   fi
 
   if [[ "$ACTION" == "Delete" ]]; then
-    echo "Removed" "$(jq -r '.metadata.name' "$MANIFEST")"
-    ./target/debug/bash-operator utils remove-finalizer "bop/finalizer" "$MANIFEST"
+    echo "Removed" "$(yq '.metadata.name' "$MANIFEST")"
+    # Remove the finalizer.
+    yq -iy '(.metadata.finalizers =  (.metadata.finalizers - ["bop/finalizer"] ))' "$MANIFEST" 
   fi
 
   # Required to update after 10 seconds.
@@ -34,9 +40,9 @@ function my_watcher(){
 export -f my_watcher
 
 # Start the operator for each resource type.
-./target/debug/bash-operator operator "v1/Secret" my_watcher &
-./target/debug/bash-operator operator --namespace "kube-system" "apps/v1/Secret" my_watcher &
-./target/debug/bash-operator operator --all-namespaces "v1/Pod" my_watcher &
+bash-operator operator "v1/Secret" my_watcher &
+bash-operator operator --namespace "kube-system" "apps/v1/Deployment" my_watcher &
+bash-operator operator --all-namespaces "v1/Pod" my_watcher &
 
 # Function to cleanup the background jobs.
 # This is called when the script exits.
@@ -63,3 +69,5 @@ The operator executes given function with 3 arguments.
 
 Actions can be either `Apply` or `Delete`. And in case if the object doesn't contain any finalizers, the watcher won't
  be able to determine if object is being deleted. So, if you want to track deletions, please use finalizers as shown in the example.
+
+If you want to update an object, just update it's manifest. It will be applied after the function is completed in case if there were any changes.
