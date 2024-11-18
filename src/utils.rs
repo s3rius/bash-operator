@@ -1,14 +1,8 @@
-use std::{io::BufReader, path::PathBuf, str::FromStr};
+use std::str::FromStr;
 
-use kube::{
-    api::{DynamicObject, GroupVersionKind, Patch, PatchParams},
-    core::GroupVersion,
-    discovery::Scope,
-};
-use serde_json::json;
-use serde_yaml::Value;
+use kube::{api::GroupVersionKind, core::GroupVersion};
 
-use crate::error::{BOError, BOResult};
+use crate::error::BOResult;
 
 pub fn get_gvk(gvk: &str) -> BOResult<GroupVersionKind> {
     let split = gvk.split('/');
